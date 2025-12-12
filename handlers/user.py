@@ -9,6 +9,8 @@ from keyboards.keyboard_utils import keyboard_start_dialog, keyboard_help_dialog
 from states.states import FSMFillForm
 from services.PythonScripts.ai_blanck import main, genQues
 import ast
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import Message, WebAppInfo
 
 logger = logging.getLogger("__name__")
 
@@ -16,16 +18,36 @@ user_router = Router()
 
 user_dict: dict[int, dict[str, str | int | bool]] = {}
 
-
 @user_router.message(CommandStart())
-async def command_start(message: Message, state: FSMContext):
+async def command_start(message: Message):
     await message.answer(RU['/start'], reply_markup=keyboard_help_dialog)
+
+
+@user_router.message(Command('Web'))
+async def commandWEB(message: Message, state: FSMContext):
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="📱 Открыть",
+        web_app=WebAppInfo(url="https://assasinbaby.github.io/web/web.html")  # Ваш URL
+    )
+    await message.answer("Нажмите кнопку:", reply_markup=builder.as_markup())
     await state.clear()
 
+@user_router.message(Command('go_test'))
+async def goTest(message: Message, state: FSMContext):
+    await state.set_state(FSMFillForm.fill_famili)
+    await message.answer(text='Введите ваше имя:')
+    await state.clear()
+
+@user_router.message(Command('help'))
+async def commandHelp(message: Message):
+    await message.answer(text='Я умею 😎:\n\n• Проводить тест на выгорание\n•'
+                              'Анализировать данные о сотрудниках с целью проверки на выгорание\n• '
+                              'Давать советы по борьбе с выгоранием\nЧем могу вам помочь ❔')
 
 @user_router.callback_query(F.data.in_(['help_button']))
 async def command_help(callback: CallbackQuery, state: FSMContext):
-    await callback.message.edit_text(text=RU['/help'],
+    await callback.message.edit_text(text=RU['Начать тест'],
                                      reply_markup=keyboard_start_dialog)
     await state.set_state(FSMFillForm.fill_famili)
     await callback.answer()
@@ -105,19 +127,17 @@ async def finish_questionnaire(message: Message, state: FSMContext):
     answers = user_data.get('answers', {})
     questions = user_data.get('questions', [])
 
-
-
     # Формируем результат
     result_text = "📊 Результаты опроса:\n\n"
-    # for i, question in enumerate(questions):
-    #     answer = answers.get(i, "Нет ответа")
-    #     result_text += f"{i+1}. {question}\n   Ответ: {answer}\n\n"
+    for i, question in enumerate(questions):
+        answer = answers.get(i, "Нет ответа")
+        result_text += f"{i+1}. {question}\n   Ответ: {answer}\n\n"
 
-    await message.answer('генерируем отчет')
+    await message.answer(result_text)
 
     # Получаем анализ от нейронки
-    name = user_data.get('name', 'Анна')
-    famili = user_data.get('famili', 'Борисовна')
+    name = user_data.get('name', '')
+    famili = user_data.get('famili', '')
 
     try:
         analysis_result = main(name.capitalize(), famili.capitalize())
@@ -172,4 +192,3 @@ async def process_text_answer(message: Message, state: FSMContext):
 
     # Если вопросов нет, обрабатываем как обычное сообщение
     await process_dialog_gpt(message, state)
-
